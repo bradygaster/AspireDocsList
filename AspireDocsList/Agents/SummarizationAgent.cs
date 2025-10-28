@@ -38,6 +38,7 @@ Your task is to read the provided markdown content, which represents a technical
 3. Write a single, clear, and concise “domain statement” that defines the specific domain of the article.
  - The domain statement should capture the core subject, intended audience, and use-case.
  - Avoid unnecessary details, examples, or code unless essential to the domain.
+ - State the domain as purposefully as possible, not as though you're summarizing for a general audience.
 4. Output only the domain statement, with no additional commentary or formatting.
 
 **Example Domain Statements:**

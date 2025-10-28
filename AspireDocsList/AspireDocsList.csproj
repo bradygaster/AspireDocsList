@@ -23,6 +23,9 @@
     </ItemGroup>
 
     <ItemGroup>
+      <None Update="appsettings.json">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
       <None Update="prompts\prompt_template.md">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
