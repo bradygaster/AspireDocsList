@@ -75,6 +75,15 @@ public class AgentFactory(ILogger<AgentFactory> logger,
         var combinedContent = $"{promptTemplate}\n\n# Knowledge Base\n{instructionContent}";
         logger.LogInformation("Returning combined instruction content.");
 
+        // Update agent with combined instructions that include the output format
+        agent = new AzureOpenAIClient(new Uri(azureSettings.Value.Endpoint), credential)
+            .GetChatClient(azureSettings.Value.ModelName)
+            .CreateAIAgent(
+                name: agent.Name!,
+                instructions: combinedContent,
+                description: agent.Description
+            );
+
         // Add agent to pool
         logger.LogInformation($"Adding agent {agent.Name} to agent pool.");
         agentPool.AddAgent(agent.Name!, agent);

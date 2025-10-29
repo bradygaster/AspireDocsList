@@ -18,7 +18,7 @@ builder.Services.AddTransient<MarkdownInstructionCrawler>();
 
 var app = builder.Build();
 
-await app.Services.GetRequiredService<AspireDocsCrawler>().RunAsync();
+await app.Services.GetRequiredService<AspireDocsCrawler>().RunAsync(limit: 5);
 await app.Services.GetRequiredService<MarkdownInstructionCrawler>().CrawlMarkdownFilesAsync();
 
 try

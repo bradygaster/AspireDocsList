@@ -40,20 +40,14 @@ public class ConversationLoop(AgentPool agentPool)
 
         foreach (var kvp in agentPool.GetAllAgents())
         {
-            Console.WriteLine($"🤖 {kvp.Key}: {agentPool.GetAgent(kvp.Key)?.Name}", ConsoleColor.Green);
+            var agent = agentPool.GetAgent(kvp.Key);
+            Console.WriteLine($"🤖 {agent?.Name}: {agent?.Description}", ConsoleColor.Green);
         }
     }
 
     public async Task<List<ChatMessage>> UserPrompt(string prompt)
     {
         var initialMessage = new ChatMessage(ChatRole.User, prompt);
-
-        // Build the linear workflow through the agents in the intended order.
-        //var workflow = new WorkflowBuilder(grillAgent!)
-        //                    .AddEdge(grillAgent!, fryerAgent!)
-        //                    .AddEdge(fryerAgent!, dessertAgent!)
-        //                    .AddEdge(dessertAgent!, platingAgent!)
-        //                    .Build();
 
         var allAgents = agentPool.GetAllAgents().Select(kvp => kvp.Value).ToList();
         var workflow = AgentWorkflowBuilder.BuildSequential(allAgents);
@@ -92,24 +86,5 @@ public class ConversationLoop(AgentPool agentPool)
         }
 
         return new List<ChatMessage>();
-    }
-
-    private async Task ProcessAgentResponse(string input)
-    {
-        try
-        {
-            Console.WriteLine($"\n[{agentPool.GetAgent(_currentAgentKey!)?.Name}]:", ConsoleColor.Cyan);
-
-            await foreach (var update in _currentAgent!.RunStreamingAsync(input, _currentThread!))
-            {
-                Console.WriteLine(update.Text, ConsoleColor.White);
-            }
-
-            Console.WriteLine("\n", ConsoleColor.White); // End the response with a newline
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"\nError during agent run: {ex.Message}", ConsoleColor.Red);
-        }
     }
 }
