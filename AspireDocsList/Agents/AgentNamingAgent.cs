@@ -5,15 +5,19 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenAI;
+using System.Collections.Concurrent;
 using System.Text.Json;
 
 namespace AspireDocsList.Agents;
 
-public class SummarizationAgent : AIAgent
+public class NamingAgent : AIAgent
 {
     ChatClientAgent _agent;
+    // Dictionary to cache markdown <-> agent name
+    private readonly ConcurrentDictionary<string, string> _markdownToName = new();
+    private readonly ConcurrentDictionary<string, string> _nameToMarkdown = new();
 
-    public SummarizationAgent(ILogger<SummarizationAgent> logger, IOptions<AzureSettings> azureSettings)
+    public NamingAgent(ILogger<SummarizationAgent> logger, IOptions<AzureSettings> azureSettings)
     {
         // Create chat client once
         var credential = new ChainedTokenCredential(
@@ -26,8 +30,8 @@ public class SummarizationAgent : AIAgent
         _agent = new AzureOpenAIClient(new Uri(azureSettings.Value.Endpoint), credential)
             .GetChatClient(azureSettings.Value.ModelName)
             .CreateAIAgent(
-                name: "Agent Domain Summarizer",
-                instructions: @"# Agent Instructions: Generate a Domain Statement from Markdown
+                name: "Agent Namer",
+                instructions: @"# Agent Instructions: Generate an agent name from Markdown
 
 You are an expert documentation summarization agent.
 
@@ -36,34 +40,43 @@ Your task is to read the provided markdown content, which represents a technical
 **Instructions:**
 1. Carefully read and understand the entire markdown content.
 2. Identify the main topic, purpose, and scope of the article.
-3. Write a single, clear, and concise “domain statement” that defines the specific domain of the article.
- - The domain statement should capture the core subject, intended audience, and use-case.
- - Avoid unnecessary details, examples, or code unless essential to the domain.
- - State the domain as purposefully as possible, not as though you're summarizing for a general audience.
-4. Output only the domain statement, with no additional commentary or formatting.
+3. Write a single string summarizing the agent's purpose:
+ - The string must be32 characters or less.
+ - Only use lowercase letters, numbers, and the underscore (_) character.
+ - The string should be clear, concise, and capture the core subject and use-case.
+ - Do not include spaces, punctuation, or any other characters.
+ - Output only the string, with no additional commentary or formatting.
 
-**Example Domain Statements:**
-- “Dapr integration in .NET Aspire applications.”
-- “Distributed tracing for cloud-native .NET apps using Aspire.”
-
-Your domain statement will be used to define the scope and expertise of a specialized agent representing this article."
+**Example Outputs:**
+- dapr_integration_dotnet_aspire
+- distributed_tracing_cloud_apps
+- aspire_docs_summarization"
             );
     }
 
-    public async Task<string> SummarizeAsync(string markdownContent, CancellationToken cancellationToken = default)
+    public async Task<string> NameAsync(string markdownContent, CancellationToken cancellationToken = default)
     {
+        // Check cache first
+        if (_markdownToName.TryGetValue(markdownContent, out var cachedName))
+            return cachedName;
+
         // Start conversation
         var thread = _agent.GetNewThread();
-
         var sb = new System.Text.StringBuilder();
-
         await foreach (var update in _agent!.RunStreamingAsync(markdownContent, thread!))
         {
             sb.Append(update.Text);
         }
-
-        return sb.ToString();
+        var name = sb.ToString();
+        // Cache both directions
+        _markdownToName[markdownContent] = name;
+        _nameToMarkdown[name] = markdownContent;
+        return name;
     }
+
+    // Reverse lookup: get markdown by agent name
+    public string? GetMarkdownForName(string agentName)
+        => _nameToMarkdown.TryGetValue(agentName, out var markdown) ? markdown : null;
 
     public override AgentThread DeserializeThread(JsonElement serializedThread, JsonSerializerOptions? jsonSerializerOptions = null) 
         => _agent.DeserializeThread(serializedThread, jsonSerializerOptions);

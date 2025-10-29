@@ -1,7 +1,8 @@
 using AspireDocsList.Agents;
 using HtmlAgilityPack;
+using Microsoft.Extensions.Logging;
 
-public class AspireDocsCrawler(SummarizationAgent summarizationAgent, HttpClient httpClient)
+public class AspireDocsCrawler(ILogger<AspireDocsCrawler> logger, HttpClient httpClient, HtmlToMarkdownConverter htmlToMarkdownConverter)
 {
     private readonly HttpClient _httpClient = httpClient;
     private readonly int _limit = 10;
@@ -12,14 +13,14 @@ public class AspireDocsCrawler(SummarizationAgent summarizationAgent, HttpClient
     {
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; CrawlerBot/1.0)");
         Directory.CreateDirectory(_outputDir);
-
         limit = limit > 0 ? limit : _limit;
+
         var baseUri = new Uri(_rootUrl);
         var visitedUrls = new HashSet<string>();
         var urlsToVisit = new Queue<Uri>();
         urlsToVisit.Enqueue(baseUri);
 
-        while (urlsToVisit.Count > 0)
+        while (urlsToVisit.Count > 0 && urlsToVisit.Count <= limit)
         {
             var currentUri = urlsToVisit.Dequeue();
             if (visitedUrls.Contains(currentUri.AbsoluteUri))
@@ -49,9 +50,9 @@ public class AspireDocsCrawler(SummarizationAgent summarizationAgent, HttpClient
         }
 
         var sortedUrls = visitedUrls.OrderBy(url => url).ToList();
-        Console.WriteLine("\nFinal Alphabetized List:");
+        logger.LogInformation("\nFinal Alphabetized List:");
         foreach (var url in sortedUrls)
-            Console.WriteLine(url);
+            logger.LogInformation(url);
 
         int converted = 0;
         for (int i = 0; i < sortedUrls.Count && converted < limit; i++)
@@ -63,21 +64,21 @@ public class AspireDocsCrawler(SummarizationAgent summarizationAgent, HttpClient
                 var headResponse = await _httpClient.SendAsync(headRequest);
                 if (headResponse.IsSuccessStatusCode)
                 {
-                    var markdown = await HtmlToMarkdownConverter.FromUrlAsync(url);
+                    var markdown = await htmlToMarkdownConverter.FromUrlAsync(url);
                     var slug = GetSlugFromUrl(url);
                     var filePath = Path.Combine(_outputDir, slug + ".md");
                     await File.WriteAllTextAsync(filePath, markdown);
-                    Console.WriteLine($"Saved markdown for {url} to {filePath}");
+                    logger.LogInformation($"Saved markdown for {url} to {filePath}");
                     converted++;
                 }
                 else
                 {
-                    Console.WriteLine($"\nSkipping {url}: HEAD request returned status {(int)headResponse.StatusCode} {headResponse.ReasonPhrase}");
+                    logger.LogWarning($"\nSkipping {url}: HEAD request returned status {(int)headResponse.StatusCode} {headResponse.ReasonPhrase}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"\nSkipping {url}: Exception during HEAD request or markdown conversion: {ex.Message}");
+                logger.LogError($"\nSkipping {url}: Exception during HEAD request or markdown conversion: {ex.Message}");
             }
         }
     }

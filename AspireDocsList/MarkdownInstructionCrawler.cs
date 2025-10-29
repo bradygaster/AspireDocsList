@@ -1,6 +1,7 @@
-using AspireDocsList.Agents;
+using Microsoft.Extensions.Logging;
 
-public class MarkdownInstructionCrawler(InstructionLoader instructionLoader, SummarizationAgent summarizationAgent)
+public class MarkdownInstructionCrawler(ILogger<MarkdownInstructionCrawler> logger,
+    AgentFactory agentFactory)
 {
     private readonly string _outputDir = Path.Combine(Directory.GetCurrentDirectory(), "instructions");
 
@@ -8,20 +9,15 @@ public class MarkdownInstructionCrawler(InstructionLoader instructionLoader, Sum
     {
         if (!Directory.Exists(_outputDir))
         {
-            Console.WriteLine($"Directory not found: {_outputDir}");
+            logger.LogWarning($"Directory not found: {_outputDir}");
             return;
         }
 
         var mdFiles = Directory.GetFiles(_outputDir, "*.md", SearchOption.TopDirectoryOnly);
         foreach (var file in mdFiles)
         {
-            var instruction = instructionLoader.LoadInstruction(file);
-            var summary = await summarizationAgent.SummarizeAsync(instruction);
-
-            Console.WriteLine("=======================================================");
-            Console.WriteLine("Summary for file: " + Path.GetFileName(file));
-            Console.WriteLine(summary);
-            Console.WriteLine("=======================================================");
+            logger.LogInformation($"Processing file: {file}");
+            var instruction = await agentFactory.FromInstructions(file);
         }
     }
 }

@@ -1,31 +1,43 @@
 ﻿using HtmlAgilityPack;
+using Microsoft.Extensions.Logging;
 using ReverseMarkdown;
 
-public static class HtmlToMarkdownConverter
+public class HtmlToMarkdownConverter(ILogger<HtmlToMarkdownConverter> logger)
 {
-    private static readonly HttpClient _httpClient = new();
+    private readonly HttpClient _httpClient = new();
 
-    public static async Task<string> FromUrlAsync(string url)
+    public async Task<string> FromUrlAsync(string url)
     {
         if (string.IsNullOrWhiteSpace(url))
             throw new ArgumentException("URL cannot be null or empty.", nameof(url));
 
+        logger.LogInformation($"Starting HTML to Markdown conversion for URL: {url}");
         try
         {
             // Fetch HTML from the URL
             var html = await _httpClient.GetStringAsync(url);
+            logger.LogInformation($"Fetched HTML content from {url}, length: {html.Length}");
 
             // Parse HTML
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
-            HtmlNode contentNode = null;
-
-            // Try <main>, <article>, <body> in order
-            contentNode = doc.DocumentNode.SelectSingleNode("//main");
+            HtmlNode contentNode = doc.DocumentNode.SelectSingleNode("//main")!;
+            if (contentNode != null)
+                logger.LogInformation("Selected <main> node for conversion.");
             if (contentNode == null)
-                contentNode = doc.DocumentNode.SelectSingleNode("//article");
+            {
+                contentNode = doc.DocumentNode.SelectSingleNode("//article")!;
+                if (contentNode != null)
+                    logger.LogInformation("Selected <article> node for conversion.");
+            }
             if (contentNode == null)
-                contentNode = doc.DocumentNode.SelectSingleNode("//body");
+            {
+                contentNode = doc.DocumentNode.SelectSingleNode("//body")!;
+                if (contentNode != null)
+                    logger.LogInformation("Selected <body> node for conversion.");
+            }
+            if (contentNode == null)
+                logger.LogWarning("No <main>, <article>, or <body> node found. Using full HTML.");
 
             // If none found, use full HTML
             string contentToConvert = contentNode != null ? contentNode.InnerHtml : html;
@@ -42,6 +54,7 @@ public static class HtmlToMarkdownConverter
                     {
                         node.Remove();
                     }
+                    logger.LogInformation($"Removed {nodes.Count} <{tag}> nodes from content.");
                 }
             }
             contentToConvert = tempDoc.DocumentNode.InnerHtml;
@@ -55,13 +68,16 @@ public static class HtmlToMarkdownConverter
             };
 
             var converter = new Converter(config);
+            logger.LogInformation("Configured ReverseMarkdown converter.");
 
             // Convert extracted HTML to Markdown
-            return converter.Convert(contentToConvert);
+            var markdown = converter.Convert(contentToConvert);
+            logger.LogInformation($"Conversion to Markdown complete for URL: {url}, length: {markdown.Length}");
+            return markdown;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error converting {url}: {ex.Message}");
+            logger.LogError($"Error converting {url}: {ex.Message}");
             return $"# Error\n\nFailed to convert content from {url}\n\nError: {ex.Message}";
         }
     }
